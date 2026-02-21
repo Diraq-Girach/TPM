@@ -121,7 +121,7 @@ def setup_logger():
     root.setLevel(logging.DEBUG)
 
 
-def save_result_func(lst, lock: multiprocessing.Lock()):
+def save_result_func(lst, lock):
     def func(result):
         lock.acquire()
         try:
@@ -140,13 +140,13 @@ class Scenario:
         self.iterations = 1
         self.func = func
         self.params_n = [1000]
-        # self.params_max_x = [1, 2, 3, 4, 5]
-        self.params_max_x = [1]
+        self.params_max_x = [1, 2, 3, 4, 5]
+        #self.params_max_x = [1]
         self.params_max_weight = [3]
         self.datetime = int(datetime.datetime.now().timestamp())
 
     def run(self):
-        os.mkdir(f"results/{self.datetime}")
+        os.makedirs(f"results/{self.datetime}", exist_ok=True)
         for (n, max_x, max_weight) in itertools.product(self.params_n, self.params_max_x, self.params_max_weight):
 
             logging.info("Starting simulation with N:{} and MAX_X:{}, MAX_WEIGHT:{} and FUNC:{}"

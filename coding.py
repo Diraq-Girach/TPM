@@ -5,8 +5,9 @@ from tools import SetterProperty
 
 class Code:
     def __init__(self):
-        self._code = None
-        self._inverse_code = None
+        # Change these from None to empty dicts
+        self._code = {}
+        self._inverse_code = {}
 
     @SetterProperty
     def code(self, value):
