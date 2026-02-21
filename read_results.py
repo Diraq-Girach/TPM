@@ -5,7 +5,7 @@ import re
 import matplotlib.pyplot as plt
 
 # --- CHANGE THIS to the folder containing your 5 pickle files ---
-RESULTS_DIR = r"C:\VIT\Sem 6\Cryptography Lab\Project\apna\results\1771664737"
+RESULTS_DIR = r"PASTE_PATH_HERE"
 
 def plot_weight_distributions(directory):
     parsed_data = {}
