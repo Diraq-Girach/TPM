@@ -25,3 +25,52 @@ class DynamicTPM(TPM):
     def get_hashed_key(self):
         # Final high-entropy extraction
         return hashlib.sha256(self.weights.tobytes()).hexdigest()
+
+    def get_von_neumann_key(self):
+        """
+        Von Neumann randomness extractor applied to the weight sequence.
+
+        Process:
+          1. Flatten weights and convert each to its sign bit (1 if > 0, else 0).
+             Weights of exactly 0 are excluded as they carry no directional info.
+          2. Iterate over non-zero sign bits in consecutive pairs.
+             - (0, 1) → emit bit 1
+             - (1, 0) → emit bit 0
+             - (0, 0) or (1, 1) → discard (correlated / biased pair)
+          3. Pack the extracted bits into bytes and SHA-256 hash the result
+             for a fixed-length output. The raw bit string is also returned
+             so callers can inspect yield and entropy directly.
+
+        Returns
+        -------
+        hashed  : str   — 64-char hex digest (SHA-256 of extracted bytes)
+        raw_bits: str   — the unprocessed extracted bit string (variable length)
+        """
+        flat = self.weights.flatten()
+
+        # Step 1: sign bits, dropping zeros
+        sign_bits = [1 if w > 0 else 0 for w in flat if w != 0]
+
+        # Step 2: Von Neumann extraction over consecutive pairs
+        extracted = []
+        i = 0
+        while i + 1 < len(sign_bits):
+            a, b = sign_bits[i], sign_bits[i + 1]
+            if a != b:                  # (0,1) → 1 ; (1,0) → 0
+                extracted.append(b)
+            i += 2                      # always advance by 2 (pairs are consumed)
+
+        raw_bits = ''.join(str(b) for b in extracted)
+
+        if not extracted:
+            # Degenerate case: all weights identical — return a zero digest
+            return hashlib.sha256(b'\x00').hexdigest(), raw_bits
+
+        # Step 3: pack bits → bytes → SHA-256
+        # Pad to nearest multiple of 8
+        padded = raw_bits.ljust((len(raw_bits) + 7) // 8 * 8, '0')
+        byte_array = bytes(
+            int(padded[j:j + 8], 2) for j in range(0, len(padded), 8)
+        )
+        hashed = hashlib.sha256(byte_array).hexdigest()
+        return hashed, raw_bits
