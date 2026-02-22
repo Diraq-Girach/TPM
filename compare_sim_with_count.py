@@ -6,7 +6,7 @@ from collections import Counter, deque
 from tpm import TPM
 from dynamic import DynamicTPM
 from tools import signum_zero_to_plus, signum_zero_to_minus
-
+#np.random.seed(0)
 def get_random_vec(max_x, k, n):
     """Helper function to generate non-binary inputs."""
     lst = list(range(-max_x, max_x + 1))
@@ -14,14 +14,25 @@ def get_random_vec(max_x, k, n):
     return np.random.choice(lst, k * n)
 
 def run_standard_tpm(k, n, l_max, max_x):
+    """
+    Corrected: compute tau_a and tau_b from the same pre-update weights,
+    then apply both updates. This matches the original perform_key_agreement logic.
+    """
     tpm_a = TPM(k, n, l_max, signum=signum_zero_to_plus)
     tpm_b = TPM(k, n, l_max, signum=signum_zero_to_minus)
     iterations = 0
     while not np.array_equal(tpm_a.weights, tpm_b.weights):
         iterations += 1
         vec = get_random_vec(max_x, k, n)
-        tpm_a.optimize(vec, tpm_b.get_output(vec)[0])
-        tpm_b.optimize(vec, tpm_a.get_output(vec)[0])
+
+        # IMPORTANT: compute both taus before any optimize/update call
+        tau_a, _ = tpm_a.get_output(vec)
+        tau_b, _ = tpm_b.get_output(vec)
+
+        # now update both using the taus computed above
+        tpm_a.optimize(vec, tau_b)
+        tpm_b.optimize(vec, tau_a)
+
     return tpm_a.weights.flatten(), iterations
 
 def run_diffused_hybrid_tpm(k, n, l_start, l_max, max_x, threshold=0.92, window_size=30, diffusion_steps=150):
@@ -78,7 +89,7 @@ def run_diffused_hybrid_tpm(k, n, l_start, l_max, max_x, threshold=0.92, window_
     return tpm_a.weights.flatten(), iterations, clip_iters, mod_iters, tpm_a.get_hashed_key()
 
 def plot_results():
-    K, N, MAX_X, L_MAX, L_START = 3, 40 ,1, 5, 2
+    K, N, MAX_X, L_MAX, L_START = 3, 1000 , 1, 5, 2
     
     print("Simulating Standard Protocol (Clipped)...")
     w_std, i_std = run_standard_tpm(K, N, L_MAX, MAX_X)
