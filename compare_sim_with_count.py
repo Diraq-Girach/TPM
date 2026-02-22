@@ -32,8 +32,11 @@ def run_diffused_hybrid_tpm(k, n, l_start, l_max, max_x, threshold=0.92, window_
     iterations, l_cur = 0, l_start
     is_synced = False
     diff_counter = 0
+
+    # NEW counters
+    clip_iters = 0
+    mod_iters = 0
     
-    # Loop continues until L_max is hit, weights match, AND diffusion is complete
     while l_cur < l_max or not is_synced or diff_counter < diffusion_steps:
         iterations += 1
         vec = get_random_vec(max_x, k, n)
@@ -41,22 +44,28 @@ def run_diffused_hybrid_tpm(k, n, l_start, l_max, max_x, threshold=0.92, window_
         tau_a, _ = tpm_a.get_output(vec)
         tau_b, _ = tpm_b.get_output(vec)
         
-        # Check if synchronization has been achieved
+        # Detect sync once L_max reached
         if not is_synced and l_cur == l_max:
             if np.array_equal(tpm_a.weights, tpm_b.weights):
                 is_synced = True
                 print(f"Networks Synced at iteration {iterations}. Starting Diffusion...")
 
-        # If already synced, increment the diffusion counter
         if is_synced:
             diff_counter += 1
 
-        # Final stage (L=max) always uses Modulo for flatness
+        # Final stage logic
         is_final_stage = (l_cur == l_max)
+
+        # COUNT PHASES
+        if is_final_stage:
+            mod_iters += 1
+        else:
+            clip_iters += 1
+
         tpm_a.optimize(vec, tau_b, use_modulo=is_final_stage)
         tpm_b.optimize(vec, tau_a, use_modulo=is_final_stage)
         
-        # Agreement-Based Trigger for speed
+        # Agreement-Based Trigger
         if l_cur < l_max:
             history.append(tau_a == tau_b)
             if len(history) == window_size and sum(history)/window_size >= threshold:
@@ -66,16 +75,16 @@ def run_diffused_hybrid_tpm(k, n, l_start, l_max, max_x, threshold=0.92, window_
                 l_cur = new_l
                 history.clear()
             
-    return tpm_a.weights.flatten(), iterations, tpm_a.get_hashed_key()
+    return tpm_a.weights.flatten(), iterations, clip_iters, mod_iters, tpm_a.get_hashed_key()
 
 def plot_results():
-    K, N, MAX_X, L_MAX, L_START = 3, 40, 3, 5, 2
+    K, N, MAX_X, L_MAX, L_START = 3, 40 ,1, 5, 2
     
     print("Simulating Standard Protocol (Clipped)...")
     w_std, i_std = run_standard_tpm(K, N, L_MAX, MAX_X)
     
     print("Simulating Hybrid Dynamic (Speed + Flatness)...")
-    w_dyn, i_dyn, key = run_diffused_hybrid_tpm(K, N, L_START, L_MAX, MAX_X)
+    w_dyn, i_dyn, clip_iters, mod_iters, key = run_diffused_hybrid_tpm(K, N, L_START, L_MAX, MAX_X)
     
     print(f"\nFinal High-Entropy Key: {key}")
 
@@ -88,7 +97,10 @@ def plot_results():
     ax[0].set_title(f"Standard TPM (Static L=5)\nSync: {i_std} iters")
     
     ax[1].bar(x_labels, d_freq, color='forestgreen')
-    ax[1].set_title(f"Hybrid Dynamic TPM (Modulo Final)\nSync: {i_dyn} iters")
+    ax[1].set_title(
+    f"Hybrid Dynamic TPM (Modulo Final)\n"
+    f"Total: {i_dyn} | Clipped: {clip_iters} | Modulo: {mod_iters}"
+)
     
     for a in ax: a.set_ylim(0, 0.35)
     plt.show()
