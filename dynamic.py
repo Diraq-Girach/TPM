@@ -27,25 +27,7 @@ class DynamicTPM(TPM):
         return hashlib.sha256(self.weights.tobytes()).hexdigest()
 
     def get_von_neumann_key(self):
-        """
-        Von Neumann randomness extractor applied to the weight sequence.
-
-        Process:
-          1. Flatten weights and convert each to its sign bit (1 if > 0, else 0).
-             Weights of exactly 0 are excluded as they carry no directional info.
-          2. Iterate over non-zero sign bits in consecutive pairs.
-             - (0, 1) → emit bit 1
-             - (1, 0) → emit bit 0
-             - (0, 0) or (1, 1) → discard (correlated / biased pair)
-          3. Pack the extracted bits into bytes and SHA-256 hash the result
-             for a fixed-length output. The raw bit string is also returned
-             so callers can inspect yield and entropy directly.
-
-        Returns
-        -------
-        hashed  : str   — 64-char hex digest (SHA-256 of extracted bytes)
-        raw_bits: str   — the unprocessed extracted bit string (variable length)
-        """
+        
         flat = self.weights.flatten()
 
         # Step 1: sign bits, dropping zeros
